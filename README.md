@@ -186,8 +186,8 @@ App runs on `http://localhost:3000`, API on `http://localhost:5000`
 ## 👤 Author
 
 **Your Name**
-- GitHub: [@yourusername](https://github.com/yourusername)
-- Email: your@email.com
+- GitHub: [mitalivarshney-mv](https://github.com/mitalivarshney-mv/taskflow)
+- Email: mitali.varshney@ethara.ai
 
 ---
 
