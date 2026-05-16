@@ -1,0 +1,409 @@
+import { useState, useEffect, useCallback } from "react";
+
+// ── tiny uid helper ──────────────────────────────────────────────────────────
+const uid = () => Math.random().toString(36).slice(2, 9);
+const now = () => new Date().toISOString();
+const fmtDate = (iso) =>
+  new Date(iso).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+const isOverdue = (due) => due && new Date(due) < new Date();
+
+// ── seed data ────────────────────────────────────────────────────────────────
+const SEED_USERS = [
+  { id: "u1", name: "Priya Sharma", email: "admin@demo.com", password: "admin123", role: "admin", avatar: "PS" },
+  { id: "u2", name: "Arjun Mehta", email: "member@demo.com", password: "member123", role: "member", avatar: "AM" },
+  { id: "u3", name: "Neha Kapoor", email: "neha@demo.com", password: "neha123", role: "member", avatar: "NK" },
+];
+
+const SEED_PROJECTS = [
+  { id: "p1", name: "Website Redesign", description: "Redesign company website with new branding", createdBy: "u1", members: ["u1", "u2", "u3"], createdAt: now(), color: "#6366f1" },
+  { id: "p2", name: "Mobile App MVP", description: "Build initial version of the mobile application", createdBy: "u1", members: ["u1", "u3"], createdAt: now(), color: "#f59e0b" },
+];
+
+const SEED_TASKS = [
+  { id: "t1", projectId: "p1", title: "Design new homepage mockups", description: "Create Figma mockups for homepage", status: "done", priority: "high", assignedTo: "u2", due: "2026-05-10", createdBy: "u1", createdAt: now() },
+  { id: "t2", projectId: "p1", title: "Setup CI/CD pipeline", description: "Configure GitHub Actions", status: "in-progress", priority: "high", assignedTo: "u3", due: "2026-05-20", createdBy: "u1", createdAt: now() },
+  { id: "t3", projectId: "p1", title: "Write unit tests", description: "Achieve 80% coverage", status: "todo", priority: "medium", assignedTo: "u2", due: "2026-06-01", createdBy: "u1", createdAt: now() },
+  { id: "t4", projectId: "p2", title: "Define API endpoints", description: "REST API documentation", status: "done", priority: "high", assignedTo: "u3", due: "2026-05-08", createdBy: "u1", createdAt: now() },
+  { id: "t5", projectId: "p2", title: "Build auth screens", description: "Login, signup, forgot password", status: "in-progress", priority: "medium", assignedTo: "u1", due: "2026-05-25", createdBy: "u1", createdAt: now() },
+  { id: "t6", projectId: "p1", title: "SEO Optimization", description: "Add meta tags and optimize content", status: "todo", priority: "low", assignedTo: "u2", due: "2026-04-01", createdBy: "u1", createdAt: now() },
+];
+
+// ── STATUS / PRIORITY CONFIG ─────────────────────────────────────────────────
+const STATUS = {
+  todo: { label: "To Do", color: "#94a3b8", bg: "#f1f5f9" },
+  "in-progress": { label: "In Progress", color: "#f59e0b", bg: "#fffbeb" },
+  done: { label: "Done", color: "#10b981", bg: "#f0fdf4" },
+};
+const PRIORITY = {
+  low: { label: "Low", color: "#64748b" },
+  medium: { label: "Medium", color: "#f59e0b" },
+  high: { label: "High", color: "#ef4444" },
+};
+
+// ── STORAGE HELPERS ──────────────────────────────────────────────────────────
+const store = {
+  get: (k, def) => { try { const v = sessionStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } },
+  set: (k, v) => { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+export default function App() {
+  const [users]    = useState(() => store.get("ttm_users", SEED_USERS));
+  const [projects, setProjects] = useState(() => store.get("ttm_projects", SEED_PROJECTS));
+  const [tasks,    setTasks]    = useState(() => store.get("ttm_tasks", SEED_TASKS));
+  const [session,  setSession]  = useState(() => store.get("ttm_session", null));
+  const [view,     setView]     = useState("dashboard");
+  const [selProject, setSelProject] = useState(null);
+  const [modal,    setModal]    = useState(null); // {type, data}
+  const [toast,    setToast]    = useState(null);
+
+  useEffect(() => { store.set("ttm_projects", projects); }, [projects]);
+  useEffect(() => { store.set("ttm_tasks", tasks); }, [tasks]);
+  useEffect(() => { store.set("ttm_session", session); }, [session]);
+
+  const showToast = useCallback((msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  const login = (email, password) => {
+    const u = users.find(u => u.email === email && u.password === password);
+    if (!u) return false;
+    setSession(u);
+    setView("dashboard");
+    return true;
+  };
+  const logout = () => { setSession(null); setView("dashboard"); setSelProject(null); };
+
+  if (!session) return <LoginPage onLogin={login} />;
+
+  const myProjects = projects.filter(p => p.members.includes(session.id));
+  const myTasks = tasks.filter(t => t.assignedTo === session.id);
+  const allTasks = session.role === "admin" ? tasks : tasks.filter(t => myProjects.some(p => p.id === t.projectId));
+
+  const addProject = (data) => {
+    const p = { id: uid(), ...data, createdBy: session.id, members: [session.id, ...data.members], createdAt: now(), color: data.color || "#6366f1" };
+    setProjects(prev => [p, ...prev]);
+    showToast("Project created!");
+    setModal(null);
+  };
+  const deleteProject = (id) => {
+    setProjects(prev => prev.filter(p => p.id !== id));
+    setTasks(prev => prev.filter(t => t.projectId !== id));
+    if (selProject === id) { setSelProject(null); setView("projects"); }
+    showToast("Project deleted", "error");
+  };
+  const addTask = (data) => {
+    const t = { id: uid(), ...data, createdBy: session.id, createdAt: now() };
+    setTasks(prev => [t, ...prev]);
+    showToast("Task added!");
+    setModal(null);
+  };
+  const updateTask = (id, patch) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...patch } : t));
+  };
+  const deleteTask = (id) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
+    showToast("Task deleted", "error");
+  };
+
+  return (
+    <div style={s.app}>
+      <Sidebar session={session} view={view} setView={setView} onLogout={logout}
+        projects={myProjects} selProject={selProject} setSelProject={(id) => { setSelProject(id); setView("project"); }}
+        isAdmin={session.role === "admin"} onNewProject={() => setModal({ type: "newProject" })} />
+
+      <main style={s.main}>
+        <Topbar session={session} view={view} selProject={selProject ? projects.find(p => p.id === selProject) : null} />
+
+        {view === "dashboard" && (
+          <Dashboard session={session} tasks={allTasks} projects={myProjects} users={users}
+            onStatusChange={updateTask} onOpenProject={(id) => { setSelProject(id); setView("project"); }} />
+        )}
+        {view === "projects" && (
+          <ProjectsPage projects={myProjects} tasks={tasks} isAdmin={session.role === "admin"}
+            onOpen={(id) => { setSelProject(id); setView("project"); }}
+            onNew={() => setModal({ type: "newProject" })}
+            onDelete={deleteProject} />
+        )}
+        {view === "project" && selProject && (
+          <ProjectDetail project={projects.find(p => p.id === selProject)}
+            tasks={tasks.filter(t => t.projectId === selProject)}
+            users={users} session={session}
+            onAddTask={() => setModal({ type: "newTask", projectId: selProject })}
+            onStatusChange={updateTask} onDeleteTask={deleteTask}
+            onEditTask={(t) => setModal({ type: "editTask", task: t })} />
+        )}
+        {view === "mytasks" && (
+          <MyTasks tasks={myTasks} projects={projects} users={users}
+            onStatusChange={updateTask} onDelete={deleteTask} />
+        )}
+      </main>
+
+      {/* MODALS */}
+      {modal?.type === "newProject" && (
+        <Modal title="New Project" onClose={() => setModal(null)}>
+          <ProjectForm users={users} session={session} onSubmit={addProject} onCancel={() => setModal(null)} />
+        </Modal>
+      )}
+      {(modal?.type === "newTask" || modal?.type === "editTask") && (
+        <Modal title={modal.type === "editTask" ? "Edit Task" : "New Task"} onClose={() => setModal(null)}>
+          <TaskForm projectId={modal.projectId} task={modal.task} users={users}
+            projects={projects} session={session}
+            onSubmit={modal.type === "editTask"
+              ? (d) => { updateTask(modal.task.id, d); showToast("Task updated!"); setModal(null); }
+              : addTask}
+            onCancel={() => setModal(null)} />
+        </Modal>
+      )}
+
+      {toast && <Toast msg={toast.msg} type={toast.type} />}
+    </div>
+  );
+}
+
+// ══ LOGIN ════════════════════════════════════════════════════════════════════
+function LoginPage({ onLogin }) {
+  const [email, setEmail] = useState("admin@demo.com");
+  const [pass, setPass]   = useState("admin123");
+  const [err, setErr]     = useState("");
+
+  const submit = () => {
+    if (!onLogin(email, pass)) setErr("Invalid credentials. Try admin@demo.com / admin123");
+  };
+
+  return (
+    <div style={s.loginWrap}>
+      <div style={s.loginBox}>
+        <div style={s.loginLogo}>
+          <span style={s.logoIcon}>✦</span>
+          <span style={s.logoText}>TaskFlow</span>
+        </div>
+        <p style={s.loginSub}>Team Task Manager — Sign in to continue</p>
+
+        <div style={s.field}>
+          <label style={s.label}>Email</label>
+          <input style={s.input} value={email} onChange={e => setEmail(e.target.value)}
+            placeholder="you@company.com" onKeyDown={e => e.key === "Enter" && submit()} />
+        </div>
+        <div style={s.field}>
+          <label style={s.label}>Password</label>
+          <input style={s.input} type="password" value={pass}
+            onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />
+        </div>
+        {err && <p style={{ color: "#ef4444", fontSize: 13, marginBottom: 8 }}>{err}</p>}
+        <button style={s.btnPrimary} onClick={submit}>Sign In →</button>
+
+        <div style={s.demoHint}>
+          <b>Demo accounts:</b><br />
+          admin@demo.com / admin123 &nbsp;|&nbsp; member@demo.com / member123
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══ SIDEBAR ══════════════════════════════════════════════════════════════════
+function Sidebar({ session, view, setView, onLogout, projects, selProject, setSelProject, isAdmin, onNewProject }) {
+  const navItem = (label, icon, key) => (
+    <div key={key} style={{ ...s.navItem, ...(view === key ? s.navActive : {}) }}
+      onClick={() => setView(key)}>
+      <span>{icon}</span><span>{label}</span>
+    </div>
+  );
+
+  return (
+    <aside style={s.sidebar}>
+      <div style={s.sideTop}>
+        <div style={s.sideLogoWrap}>
+          <span style={s.logoIcon}>✦</span>
+          <span style={{ ...s.logoText, fontSize: 18 }}>TaskFlow</span>
+        </div>
+
+        <div style={s.navSection}>
+          {navItem("Dashboard", "◈", "dashboard")}
+          {navItem("My Tasks", "◉", "mytasks")}
+          {navItem("Projects", "◧", "projects")}
+        </div>
+
+        <div style={s.navSection}>
+          <div style={s.sectionLabel}>
+            PROJECTS
+            {isAdmin && <button style={s.addBtn} onClick={onNewProject}>＋</button>}
+          </div>
+          {projects.map(p => (
+            <div key={p.id}
+              style={{ ...s.projectChip, ...(selProject === p.id && view === "project" ? { background: p.color + "22", borderLeft: `3px solid ${p.color}` } : {}) }}
+              onClick={() => setSelProject(p.id)}>
+              <span style={{ ...s.dot, background: p.color }}></span>
+              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={s.sideBottom}>
+        <div style={s.avatar}>{session.avatar}</div>
+        <div style={{ flex: 1, overflow: "hidden" }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: "#e2e8f0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{session.name}</div>
+          <div style={{ fontSize: 11, color: "#64748b", textTransform: "capitalize" }}>{session.role}</div>
+        </div>
+        <button style={s.logoutBtn} onClick={onLogout} title="Logout">⏻</button>
+      </div>
+    </aside>
+  );
+}
+
+// ══ TOPBAR ═══════════════════════════════════════════════════════════════════
+function Topbar({ session, view, selProject }) {
+  const titles = { dashboard: "Dashboard", projects: "All Projects", mytasks: "My Tasks", project: selProject?.name || "Project" };
+  return (
+    <div style={s.topbar}>
+      <div>
+        <h1 style={s.pageTitle}>{titles[view] || "—"}</h1>
+        <p style={s.pageSubtitle}>
+          {view === "dashboard" && `Welcome back, ${session.name.split(" ")[0]} 👋`}
+          {view === "projects" && "All your projects at a glance"}
+          {view === "mytasks" && "Tasks assigned to you"}
+          {view === "project" && selProject?.description}
+        </p>
+      </div>
+      <div style={{ fontSize: 12, color: "#64748b" }}>{new Date().toDateString()}</div>
+    </div>
+  );
+}
+
+// ══ DASHBOARD ════════════════════════════════════════════════════════════════
+function Dashboard({ session, tasks, projects, users, onStatusChange, onOpenProject }) {
+  const total     = tasks.length;
+  const done      = tasks.filter(t => t.status === "done").length;
+  const inProg    = tasks.filter(t => t.status === "in-progress").length;
+  const overdue   = tasks.filter(t => isOverdue(t.due) && t.status !== "done").length;
+  const myTasks   = tasks.filter(t => t.assignedTo === session.id).slice(0, 6);
+
+  const stats = [
+    { label: "Total Tasks",   value: total,  color: "#6366f1", icon: "◈" },
+    { label: "In Progress",   value: inProg,  color: "#f59e0b", icon: "◉" },
+    { label: "Completed",     value: done,    color: "#10b981", icon: "✓" },
+    { label: "Overdue",       value: overdue, color: "#ef4444", icon: "⚠" },
+  ];
+
+  return (
+    <div style={s.content}>
+      <div style={s.statsRow}>
+        {stats.map(stat => (
+          <div key={stat.label} style={{ ...s.statCard, borderTop: `3px solid ${stat.color}` }}>
+            <div style={{ fontSize: 28, color: stat.color, fontWeight: 700 }}>{stat.value}</div>
+            <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>{stat.label}</div>
+            <div style={{ fontSize: 22, position: "absolute", right: 16, top: 16, opacity: 0.15, color: stat.color }}>{stat.icon}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={s.twoCol}>
+        <div style={s.card}>
+          <h3 style={s.cardTitle}>My Recent Tasks</h3>
+          {myTasks.length === 0 && <p style={s.empty}>No tasks assigned to you.</p>}
+          {myTasks.map(t => {
+            const proj = projects.find(p => p.id === t.projectId);
+            return (
+              <div key={t.id} style={s.taskRow}>
+                <StatusBadge status={t.status} onChange={(v) => onStatusChange(t.id, { status: v })} />
+                <div style={{ flex: 1, overflow: "hidden" }}>
+                  <div style={{ fontWeight: 500, fontSize: 13, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: t.status === "done" ? "line-through" : "none", opacity: t.status === "done" ? 0.5 : 1 }}>{t.title}</div>
+                  <div style={{ fontSize: 11, color: "#64748b" }}>{proj?.name} {t.due && `· Due ${fmtDate(t.due)}`}</div>
+                </div>
+                <PriorityBadge priority={t.priority} />
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={s.card}>
+          <h3 style={s.cardTitle}>Projects Overview</h3>
+          {projects.map(p => {
+            const ptasks = tasks.filter(t => t.projectId === p.id);
+            const pdone  = ptasks.filter(t => t.status === "done").length;
+            const pct    = ptasks.length ? Math.round((pdone / ptasks.length) * 100) : 0;
+            return (
+              <div key={p.id} style={{ ...s.projectRow, cursor: "pointer" }} onClick={() => onOpenProject(p.id)}>
+                <div style={{ ...s.dot, background: p.color, width: 10, height: 10 }}></div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: "#e2e8f0", marginBottom: 6 }}>{p.name}</div>
+                  <div style={s.progressBar}>
+                    <div style={{ ...s.progressFill, width: pct + "%", background: p.color }}></div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: "#64748b", marginLeft: 8 }}>{pct}%</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══ PROJECTS PAGE ════════════════════════════════════════════════════════════
+function ProjectsPage({ projects, tasks, isAdmin, onOpen, onNew, onDelete }) {
+  return (
+    <div style={s.content}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
+        {isAdmin && <button style={s.btnPrimary} onClick={onNew}>＋ New Project</button>}
+      </div>
+      <div style={s.projectGrid}>
+        {projects.map(p => {
+          const ptasks = tasks.filter(t => t.projectId === p.id);
+          const done   = ptasks.filter(t => t.status === "done").length;
+          const pct    = ptasks.length ? Math.round((done / ptasks.length) * 100) : 0;
+          return (
+            <div key={p.id} style={s.projectCard}>
+              <div style={{ ...s.projectCardHeader, background: p.color + "22", borderBottom: `1px solid ${p.color}33` }}>
+                <div style={{ ...s.dot, background: p.color, width: 12, height: 12 }}></div>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "#e2e8f0", flex: 1 }}>{p.name}</h3>
+                {isAdmin && <button style={s.iconBtn} onClick={(e) => { e.stopPropagation(); onDelete(p.id); }} title="Delete project">🗑</button>}
+              </div>
+              <div style={{ padding: "14px 16px" }}>
+                <p style={{ fontSize: 12, color: "#94a3b8", margin: "0 0 12px 0", minHeight: 32 }}>{p.description}</p>
+                <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>{ptasks.length} tasks · {done} done</div>
+                <div style={s.progressBar}>
+                  <div style={{ ...s.progressFill, width: pct + "%", background: p.color }}></div>
+                </div>
+                <div style={{ fontSize: 11, color: "#64748b", marginTop: 4, textAlign: "right" }}>{pct}% complete</div>
+                <button style={{ ...s.btnOutline, marginTop: 12, width: "100%" }} onClick={() => onOpen(p.id)}>Open Project →</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ══ PROJECT DETAIL ═══════════════════════════════════════════════════════════
+function ProjectDetail({ project, tasks, users, session, onAddTask, onStatusChange, onDeleteTask, onEditTask }) {
+  const [filter, setFilter] = useState("all");
+  if (!project) return <div style={s.content}><p style={s.empty}>Select a project.</p></div>;
+
+  const isAdmin = session.role === "admin";
+  const shown = filter === "all" ? tasks : tasks.filter(t => t.status === filter);
+
+  return (
+    <div style={s.content}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+        {["all", "todo", "in-progress", "done"].map(f => (
+          <button key={f} style={{ ...s.filterBtn, ...(filter === f ? s.filterActive : {}) }} onClick={() => setFilter(f)}>
+            {f === "all" ? "All" : STATUS[f]?.label}
+          </button>
+        ))}
+        <div style={{ flex: 1 }} />
+        {isAdmin && <button style={s.btnPrimary} onClick={onAddTask}>＋ Add Task</button>}
+      </div>
+
+      <div style={s.kanban}>
+        {["todo", "in-progress", "done"].map(col => {
+          const colTasks = tasks.filter(t => t.status === col && (filter === "all" || filter === col));
