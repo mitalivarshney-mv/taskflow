@@ -1,12 +1,3 @@
-function App() {
-  return (
-    <div>
-      <h1>TaskFlow Working 🚀</h1>
-    </div>
-  );
-}
-
-export default App;
 import React from "react";
 import { useState, useEffect, useCallback } from "react";
 
