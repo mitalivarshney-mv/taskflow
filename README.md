@@ -103,7 +103,7 @@ taskflow/
 
 ### 1. Clone the repo
 ```bash
-git clone https://github.com/YOUR_USERNAME/taskflow.git
+git clone https://taskflow-production-0f84.up.railway.app/taskflow.git
 cd taskflow
 ```
 
