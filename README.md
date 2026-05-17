@@ -10,7 +10,7 @@ A full-stack web application for managing team projects and tasks with **role-ba
 
 ## 🚀 Live Demo
 
-**[👉 View Live App](https://task-manager-team1.netlify.app)**
+**[👉 View Live App](overflowing-gentleness-production-c419.up.railway.app)**
 
 > **Demo Credentials:**
 > | Role | Email | Password |
