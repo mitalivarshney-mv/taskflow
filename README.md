@@ -15,7 +15,7 @@ A full-stack web application for managing team projects and tasks with **role-ba
 > **Demo Credentials:**
 > | Role | Email | Password |
 > |------|-------|----------|
-> | Admin | mitali.varshney@ethara.ai | admin123 |
+> | Admin | admin@demo.com | admin123 |
 > | Member | member@demo.com | member123 |
 
 ---
