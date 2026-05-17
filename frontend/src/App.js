@@ -174,8 +174,8 @@ export default function App() {
 }
 
 function LoginPage(props) {
-  const [email, setEmail] = useState("admin@demo.com");
-  const [pass, setPass] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
   const [err, setErr] = useState("");
 
   const submit = function() {
@@ -200,6 +200,9 @@ function LoginPage(props) {
         </div>
         {err && <p style={{ color: "#ef4444", fontSize: 13, marginBottom: 8 }}>{err}</p>}
         <button style={s.btnPrimary} onClick={submit}>Sign In</button>
+          <p style={{ color: "#64748b", fontSize: 12, textAlign: "center", marginTop: 12 }}>
+  New user? Use demo account to explore!
+</p>
         <div style={s.demoHint}>
           <b>Demo accounts:</b><br />
           admin@demo.com / admin123<br />
