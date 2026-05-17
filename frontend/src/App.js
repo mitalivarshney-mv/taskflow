@@ -7,7 +7,7 @@ const fmtDate = (iso) => new Date(iso).toLocaleDateString("en-IN", { day: "2-dig
 const isOverdue = (due) => due && new Date(due) < new Date();
 
 const SEED_USERS = [
-  { id: "u1", name: "Mitali Varshney", email: "mitali.varshney@ethara.ai", password: "admin123", role: "admin", avatar: "PS" },
+  { id: "u1", name: "admin", email: "admin@demo.com", password: "admin123", role: "admin", avatar: "PS" },
   { id: "u2", name: "Arjun Mehta", email: "member@demo.com", password: "member123", role: "member", avatar: "AM" },
   { id: "u3", name: "Neha Kapoor", email: "neha@demo.com", password: "neha123", role: "member", avatar: "NK" },
 ];
