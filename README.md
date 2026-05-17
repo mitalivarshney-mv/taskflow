@@ -179,7 +179,7 @@ App runs on `http://localhost:3000`, API on `http://localhost:5000`
 
 ## 📹 Demo Video
 
-[Watch 3-min demo →](https://your-video-link-here)
+[Watch 3-min demo →](https://drive.google.com/file/d/1eSh-B2gMWvzUopKYc38bbE5-xuNp-b36/view?usp=drivesdk)
 
 ---
 
